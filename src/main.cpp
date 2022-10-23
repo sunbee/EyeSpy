@@ -97,7 +97,7 @@ void setup() {
 
   // WiFi
   WiFi.begin(SSID, PWD);
-  Serial.print("Making WiFi connection.");
+  Serial.print("Making WiFi connection..");
   while (WiFi.isConnected() != true) {
     Serial.print(" .");
     delay(500);
@@ -129,16 +129,18 @@ void loop() {
       String b64enc = String();
       b64enc = capturePhoto(_jpg_buf, &_jpg_len);
       // Encode in base64
-      Serial.println(b64enc);
+      // Serial.println(b64enc);
 
       // TODO [Alt.]: Ship to MQTT broker - MacBook
 
       // Ship to MQTT broker - HiveMQ
+      Serial.print("Connect to MQTT broker..");
       if (!MQTTClient.connected()) {
-        Serial.println("Made no MQTT connection.");
+        Serial.println("Failed! Made NO MQTT connection.");
         reconnect();
       } else {
-        publish_me((String)"Namaste ji!"); // Publisher action
+        Serial.println("Done!");
+        publish_me(b64enc); // Publisher action
       }
       MQTTClient.loop(); // Callbacks handled in event loop
 
@@ -180,7 +182,7 @@ String capturePhoto(uint8_t* _jpg, size_t* _len) {
   frame = esp_camera_fb_get();
   if (!frame)
   {
-    Serial.println("Got NO snap!");
+    Serial.println("Failed! Got NO snap!");
   } else {
     Serial.println("Done! Got image of size ");
     Serial.print(frame->len);
@@ -194,12 +196,12 @@ String capturePhoto(uint8_t* _jpg, size_t* _len) {
         Serial.print(*_len);
         Serial.print(" bytes.");
       } else {
-        Serial.println("Produced NO JPEG!");
+        Serial.println("Failed! Produced NO JPEG!");
       }
     } else {
       _jpg    = frame->buf;
       *_len   = frame->len;
-      Serial.println("READY TO PUBLISH IMAGE!");
+      Serial.println("READY TO PUBLISH IMAGE!!");
     } // end IF JPEG `.. format is JPEG
     
     b64enc = base64::encode(_jpg, *_len);
@@ -229,22 +231,23 @@ void onmessage(char* topic, byte* payload, unsigned int length) {
 }
 
 void publish_me(String message) {
-  boolean pstatus = MQTTClient.publish_P(_HiveTopic, (const uint8_t*)message.c_str(), message.length(), true);
-  Serial.println(String(pstatus ? "Published" : "ERR") );
+  Serial.print("Publishing image..");
+  bool pstatus = MQTTClient.publish_P(_HiveTopic, (const uint8_t*)message.c_str(), message.length(), true);
+  Serial.println(String(pstatus ? "Published!" : " Failed! Sent no image."));
 }
 
 void reconnect() {
   while (!MQTTClient.connected()) {   // Until connected..
-    Serial.print("Connecting to MQTT broker .. ");
+    Serial.print("Connecting to MQTT broker.. ");
     String clientID = "BIRD_IS_WORD";
     if (MQTTClient.connect(clientID.c_str(), _HiveUID, _HivePWD)) { // Present credentials
-      Serial.println("connected");
+      Serial.println("Connected!");
       MQTTClient.publish(_HiveTopic, "BIRD IS THE WORD");           // Announce status
       MQTTClient.subscribe(_HiveTopic);                             // Resubscribe
     } else {
-      Serial.print("failed, rc = ");
+      Serial.print("Failed! Made no connection with rc = ");
       Serial.print(MQTTClient.state());
-      Serial.println(" try again in 5 seconds.");                   // Retry after delay
+      Serial.println("! Try again in 5 seconds!");                   // Retry after delay
       delay(5000);
     }
   }
