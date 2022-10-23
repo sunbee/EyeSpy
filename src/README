@@ -1,3 +1,9 @@
 ## ESP32-WROVER Cam
 
 A cam to catch a fleet-footed feathered friend who visit my bird-feeder.
+
+*rev001*: Baseline, access ESP32-WROVER cam via web with vendor-supplied web-server library.
+*rev002*: Add feature to capture image every sec and encode in base64.
+*rev003*: Send to Hive MQTT broker and verify transmission.
+*rev004*: Send Telegram notification when motion is detected (w simulated sensor).
+*rev005*: Add feature for motion detection by sensor.
