@@ -4,9 +4,7 @@
 #include <base64.h>
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
-
-WiFiClientSecure HTTPClient;
-PubSubClient MQTTClient(HTTPClient);
+#include <WiFiClient.h>
 
 #define deBuG false
 
@@ -16,11 +14,33 @@ PubSubClient MQTTClient(HTTPClient);
 #include "config.h"
 const char* _SSID       = SSID;
 const char* _PWD        = PWD;
-const char* _HiveBroker = HIVEMQ_BROKER; // replace with your broker url
-const char* _HiveUID    = HIVEMQ_UID;
-const char* _HivePWD    = HIVEMQ_PWD;
-const int   _HivePort   = 8883;
-const char* _HiveTopic  = "bluebird";
+
+// const char* _MQBroker = ""; // replace with your broker url
+// const char* _MQUID    = "";
+// const char* _MQPWD    = "";
+// const int   _MQPort   = 0;
+// const char* _MQTopic  = "";
+// const bool  _MQTLS    = true;
+
+#if defined(HIVEMQ)
+  WiFiClientSecure HTTPClient;
+  PubSubClient MQTTClient(HTTPClient);
+
+  const char* _MQBroker = HIVEMQ_BROKER; // replace with your broker url
+  const char* _MQUID    = HIVEMQ_UID;
+  const char* _MQPWD    = HIVEMQ_PWD;
+  const int   _MQPort   = 8883;
+  const char* _MQTopic  = "bluebird";
+#else
+  WiFiClient HTTPClient;
+  PubSubClient MQTTClient(HTTPClient);
+
+  const char* _MQBroker = MAC_BROKER;
+  const char* _MQUID    = MAC_UID;
+  const char* _MQPWD    = MAC_PWD;
+  const int   _MQPort   = 1883;
+  const char* _MQTopic  = "test";
+#endif
 
 camera_config_t config;
 
@@ -29,7 +49,7 @@ void config_init();
 
 unsigned long tic = millis();
 unsigned long toc = tic;
-unsigned long delta = 1000;
+unsigned long delta = 5000;
 
 uint8_t*  _jpg_buf = NULL;
 size_t    _jpg_len = 0;
@@ -79,7 +99,7 @@ void setup() {
   Serial.println();
 
   config_init();
-  config.frame_size = FRAMESIZE_SVGA;
+  config.frame_size = FRAMESIZE_QVGA; // FRAMESIZE_240X240; 
   config.jpeg_quality = 12;
 
   // Initialize camera
@@ -105,9 +125,9 @@ void setup() {
   Serial.println("Done!");
 
   // MQTT
-  // HTTPClient.setInsecure();
-  HTTPClient.setCACert(root_ca);
-  MQTTClient.setServer(_HiveBroker, _HivePort);  // MQTT_IP, 1883 or HiveNQ, 1883
+  // HTTPClient.setCACert(root_ca);   // Use with WiFiClientSecure (HIveMQ), 
+                                      // takes too long to publish image!
+  MQTTClient.setServer(_MQBroker, _MQPort); 
   MQTTClient.setCallback(onmessage);    
 
   if (deBuG) {
@@ -128,8 +148,6 @@ void loop() {
       // Grab a snap
       String b64enc = String();
       b64enc = capturePhoto(_jpg_buf, &_jpg_len);
-      // Encode in base64
-      // Serial.println(b64enc);
 
       // TODO [Alt.]: Ship to MQTT broker - MacBook
 
@@ -232,18 +250,20 @@ void onmessage(char* topic, byte* payload, unsigned int length) {
 
 void publish_me(String message) {
   Serial.print("Publishing image..");
-  bool pstatus = MQTTClient.publish_P(_HiveTopic, (const uint8_t*)message.c_str(), message.length(), true);
+  boolean pstatus;
+  pstatus = MQTTClient.publish_P(_MQTopic, (const uint8_t*)message.c_str(), message.length(), true);
+  //pstatus = MQTTClient.publish(_HiveTopic, message.c_str());
   Serial.println(String(pstatus ? "Published!" : " Failed! Sent no image."));
 }
 
 void reconnect() {
   while (!MQTTClient.connected()) {   // Until connected..
     Serial.print("Connecting to MQTT broker.. ");
-    String clientID = "BIRD_IS_WORD";
-    if (MQTTClient.connect(clientID.c_str(), _HiveUID, _HivePWD)) { // Present credentials
+    String clientID = "BIRDWORD";
+    if (MQTTClient.connect(clientID.c_str(), _MQUID, _MQPWD)) { // Present credentials
       Serial.println("Connected!");
-      MQTTClient.publish(_HiveTopic, "BIRD IS THE WORD");           // Announce status
-      MQTTClient.subscribe(_HiveTopic);                             // Resubscribe
+      MQTTClient.publish(_MQTopic, "BIRD IS THE WORD");           // Announce status
+      MQTTClient.subscribe(_MQTopic);                             // Resubscribe
     } else {
       Serial.print("Failed! Made no connection with rc = ");
       Serial.print(MQTTClient.state());
